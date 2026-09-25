@@ -29,17 +29,19 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 0, 0, 28)
         })
 
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+
         val amount = EditText(this).apply {
             hint = "Bet amount (display only)"
             inputType = 2
-            setText(getSharedPreferences("settings", MODE_PRIVATE).getString("amount", "20"))
+            setText(prefs.getString("amount", "20"))
         }
         root.addView(amount)
 
         val target = EditText(this).apply {
             hint = "Target multiplier"
             inputType = 8194
-            setText(getSharedPreferences("settings", MODE_PRIVATE).getString("target", "2.00"))
+            setText(prefs.getString("target", "2.00"))
         }
         root.addView(target)
 
@@ -52,14 +54,14 @@ class MainActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "ALLOW ACCESSIBILITY ACCESS"
             setOnClickListener {
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                showAccessibilityDisclosure(force = true)
             }
         })
 
         root.addView(Button(this).apply {
             text = "SAVE SETTINGS"
             setOnClickListener {
-                getSharedPreferences("settings", MODE_PRIVATE).edit()
+                prefs.edit()
                     .putString("amount", amount.text.toString())
                     .putString("target", target.text.toString())
                     .apply()
@@ -72,12 +74,12 @@ class MainActivity : AppCompatActivity() {
         })
 
         root.addView(TextView(this).apply {
-            text = "Permission note: Android does not provide a normal runtime popup for Accessibility access. The button above opens Android Settings, where you must enable CasinoMaster manually."
+            text = "Accessibility access is optional and must be enabled manually in Android Settings. It is used only to read visible game text for this observe-only prototype."
             setPadding(0, 28, 0, 0)
         })
 
         root.addView(TextView(this).apply {
-            text = "Observe-only prototype: reads visible game text and reports changes. It does not place bets or press cash-out."
+            text = "Observe-only prototype: it does not place bets, press cash-out, or execute wagering actions."
             setPadding(0, 20, 0, 0)
         })
 
@@ -88,8 +90,12 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         updateMonitorStatus()
-        if (!isAccessibilityEnabled(this)) {
-            showAccessibilityOnboarding()
+
+        if (!isAccessibilityEnabled(this) &&
+            !getSharedPreferences("settings", MODE_PRIVATE)
+                .getBoolean("accessibility_disclosure_shown", false)
+        ) {
+            showAccessibilityDisclosure(force = false)
         }
     }
 
@@ -101,17 +107,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showAccessibilityOnboarding() {
+    private fun showAccessibilityDisclosure(force: Boolean) {
+        val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+
         AlertDialog.Builder(this)
-            .setTitle("Allow CasinoMaster access")
+            .setTitle("Accessibility access")
             .setMessage(
-                "To monitor the visible game screen, CasinoMaster needs Accessibility access. " +
-                "Android will open its Accessibility settings. Select CasinoMaster and turn it ON, then return to the app."
+                "CasinoMaster can read visible text from the active screen when Accessibility access is enabled. " +
+                "This is used only for the app's observe-only monitoring feature. " +
+                "The current prototype does not automatically place bets or press cash-out. " +
+                "Android requires you to grant this access manually in Accessibility Settings."
             )
-            .setPositiveButton("OPEN SETTINGS") { _, _ ->
+            .setPositiveButton("I UNDERSTAND — OPEN SETTINGS") { _, _ ->
+                prefs.edit().putBoolean("accessibility_disclosure_shown", true).apply()
                 startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             }
-            .setNegativeButton("NOT NOW", null)
+            .setNegativeButton(if (force) "CANCEL" else "NOT NOW") { _, _ ->
+                prefs.edit().putBoolean("accessibility_disclosure_shown", true).apply()
+            }
+            .setOnCancelListener {
+                prefs.edit().putBoolean("accessibility_disclosure_shown", true).apply()
+            }
             .show()
     }
 
