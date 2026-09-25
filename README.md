@@ -1,32 +1,47 @@
 # CasinoMaster
 
-Android observe-only prototype for monitoring visible game text.
+Android-safe observe-only prototype.
 
-## Current scope
-- Android settings UI
-- Configurable display-only amount and multiplier
-- Accessibility-service based visible-text monitoring
-- First-run in-app disclosure before Accessibility Settings
-- Clear ON/OFF status after returning from Android Settings
-- GitHub Actions debug APK build
+## 0.3.0 install-safe scope
 
-## Safety scope
-This prototype does **not** automatically place bets, press cash-out, or execute real-money wagering actions.
+This build intentionally removes the Accessibility Service from the APK.
 
-## Installation and Play Protect
+It requests no runtime permissions and no sensitive manifest permissions for:
+- Accessibility
+- Camera
+- Microphone
+- Location
+- Contacts
+- SMS/phone
+- Storage
+- Overlay
+- Network
 
-The APK currently uses an Android Accessibility Service. Android and Google Play Protect may show an additional security warning for a sideloaded APK that requests sensitive access. The app does not bypass Play Protect or Android security controls.
+The app currently provides:
+- Android-friendly settings UI
+- Display-only amount and multiplier
+- Local settings storage
+- Clear monitoring status
+- Explicit observe-only safety scope
 
-For a normal development/test installation, use a signed APK and install it from a trusted source. Android requires APKs to be digitally signed. For a production distribution, use a developer-owned release signing key and an appropriate distribution channel such as Google Play when the app meets applicable policies.
+It does **not** place bets, press cash-out, control another app, or execute wagering actions.
 
-Do not commit a private release keystore or its passwords to this repository.
+## Why the previous APK was blocked
+
+The previous build declared an Android Accessibility Service. Play Protect can block sideloaded apps that request sensitive device access. Removing the Accessibility Service removes that current sensitive-access component from this build.
+
+This does not guarantee that every APK will be accepted by every device's security system. Google Play Protect can still block an APK for other reasons. The correct approach is to distribute a properly signed build from a trusted channel and never bypass Android security controls.
+
+## Signing
+
+Android requires every APK to be digitally signed before installation or update. Keep release private keys outside this repository. For production distribution, use a developer-owned release key and an appropriate distribution channel.
+
+## Future screen monitoring
+
+If screen monitoring is added later, it should use the narrowest Android API that fits the feature and require clear, user-initiated consent. For screen capture on modern Android, MediaProjection requires explicit user consent for each capture session and appropriate foreground-service handling.
 
 ## Build
 
 Open the project in Android Studio and build the debug APK.
 
-The GitHub Actions workflow builds the debug APK and uploads it as a workflow artifact.
-
-## Accessibility disclosure
-
-Before requesting Accessibility access, the app explains that the service can read visible screen text and that the current prototype is observe-only. The user must explicitly choose to continue to Android Accessibility Settings.
+GitHub Actions builds the debug APK and uploads it as a workflow artifact.
