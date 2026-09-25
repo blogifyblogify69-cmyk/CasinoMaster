@@ -2,6 +2,7 @@ package com.casinomaster
 
 import android.app.*
 import android.content.*
+import android.content.pm.ServiceInfo
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.hardware.display.DisplayManager
@@ -16,6 +17,7 @@ import androidx.core.app.NotificationCompat
 import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 
 class MonitorService : Service() {
     companion object {
