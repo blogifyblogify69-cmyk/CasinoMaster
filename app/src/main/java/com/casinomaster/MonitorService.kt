@@ -53,7 +53,7 @@ class MonitorService : Service() {
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setOngoing(true)
             .build()
-        if (Build.VERSION.SDK_INT >= 29) {
+        if (Build.VERSION.SDK_INT >= 34) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(NOTIFICATION_ID, notification)
