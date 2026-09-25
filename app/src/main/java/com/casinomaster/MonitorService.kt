@@ -291,6 +291,20 @@ class MonitorService : Service() {
     }
 
     private fun startProjection(code: Int, data: Intent) {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("CasinoMaster monitor")
+                .setContentText("Screen inspection is active")
+                .setSmallIcon(android.R.drawable.ic_menu_view)
+                .setOngoing(true)
+                .build()
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+            )
+        }
         val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         projection = manager.getMediaProjection(code, data)
         val metrics = resources.displayMetrics
