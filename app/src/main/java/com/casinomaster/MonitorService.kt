@@ -509,19 +509,22 @@ class MonitorService : Service() {
         if (!prefs.getBoolean("automation_running", false)) return
 
         val heartbeat = prefs.getLong("accessibility_heartbeat", 0L)
-        val connected = prefs.getBoolean("accessibility_connected", false)
-        if (!connected || SystemClock.elapsedRealtime() - heartbeat > 2500L) {
-            demoAutomation.stop("AccessibilityService disconnected or heartbeat timed out.")
-            prefs.edit().putBoolean("automation_running", false).putString("automation_error", "AccessibilityService disconnected.").apply()
-            return
-        }
-
         val target = prefs.getString("selected_package", null)
         val activePackage = prefs.getString("accessibility_active_package", prefs.getString("accessibility_package", null))
-        if (target.isNullOrBlank() || activePackage != target) {
-            demoAutomation.stop("Target package changed; automation stopped.")
-            prefs.edit().putBoolean("automation_running", false).apply()
-            return
+        when (val safety = AutomationSafetyGate.check(
+            accessibilityConnected = prefs.getBoolean("accessibility_connected", false),
+            heartbeatAgeMs = SystemClock.elapsedRealtime() - heartbeat,
+            activePackage = activePackage,
+            targetPackage = target,
+            projectionActive = projection != null
+        )) {
+            is AutomationSafetyResult.Stop -> {
+                demoAutomation.stop(safety.reason)
+                prefs.edit().putBoolean("automation_running", false)
+                    .putString("automation_error", safety.reason).apply()
+                return
+            }
+            AutomationSafetyResult.Ok -> Unit
         }
 
         val text = prefs.getString("accessibility_text", "").orEmpty()
