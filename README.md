@@ -72,3 +72,35 @@ The app includes **RUN AUTOMATIC END-TO-END TEST**. It runs a deterministic loca
 `COUNTDOWN → COUNTDOWN > 13 → BET_REQUESTED → ROUND_ACTIVE → MULTIPLIER_TARGET → COLLECT_REQUESTED → ROUND_ENDED → 10-second cooldown → repeat`
 
 The BET and COLLECT events are internal test callbacks only. The test does not click another app or perform real wagering/cash-out actions.
+
+## 0.5.0 UI automation/testing profiles
+
+This build adds a generic, user-configured AccessibilityService test runner.
+
+- UI AUTOMATION PROFILES opens the profile editor.
+- A profile is bound to one exact target package.
+- Rules can match visible text, contentDescription, resource/view ID, and accessibility class.
+- Only explicit CLICK rules are executed.
+- The service uses accessibility node actions instead of coordinate-based blind taps.
+- Per-rule timeout and retry limits are recorded in the action log.
+- Start / Pause / Resume / Stop controls are provided.
+- A safety guard refuses to automate screens containing common authentication, consent, payment, purchase, banking, betting, wager, cash-out, or withdrawal terms.
+- Accessibility access is user-enabled through Android Settings; the app does not grant itself this permission.
+- The existing automatic BET + COLLECT test remains a local deterministic developer-owned demo callback and does not control another APK.
+
+### Accessibility setup
+
+1. Build and install the debug APK.
+2. Open UI AUTOMATION PROFILES.
+3. Tap ENABLE ACCESSIBILITY SERVICE.
+4. In Android Settings, enable the CasinoMaster automation service.
+5. Return to the app, select an authorized target package, create/save a profile, and tap START AUTOMATION.
+6. Launch the target application and watch the action log.
+
+Example profile rules:
+
+- visible text START -> CLICK
+- visible text NEXT -> CLICK
+- visible text DONE -> CLICK
+
+For safer matching, prefer a resource/view ID or contentDescription when the target application exposes one. Rules are intentionally package-scoped and do not perform authentication, consent, payment, purchase, betting, cash-out, or withdrawal actions.
