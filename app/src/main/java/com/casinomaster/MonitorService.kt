@@ -48,6 +48,9 @@ class MonitorService : Service() {
     private var lastAgentNotice = 0L
     private var lastRoundEnd = 0L
     private var lastFrameTime = 0L
+    private var countdownAbove13Since = 0L
+    private var lastBetAlert = 0L
+    private var lastCollectAlert = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -456,8 +459,8 @@ class MonitorService : Service() {
                     lastAgentNotice = now
                     agentState = "TARGET_APPROACHING"
                     saveAgent("TARGET_APPROACHING", "Active flight detected. Configured target $target x. Manual collect required.")
-                    showAgentMarker("TARGET $target x")
-                    postAgentNotification("Collect target approaching", "Configured target: $target x — collect manually.")
+                    showAgentMarker("COLLECT $target x")
+                    if (now - lastCollectAlert > 5000L) { lastCollectAlert = now; postAgentNotification("COLLECT TARGET", "Target $target x detected/approaching. Collect manually.") }
                 }
             }
             lowerRight.greenRatio > 0.012 || leftPanel.activityRatio > 0.020 -> {
@@ -468,13 +471,20 @@ class MonitorService : Service() {
                     showAgentMarker("ROUND ENDED • WAIT 10s")
                     postAgentNotification("Round ended", "Waiting 10 seconds for the next round.")
                 } else if (agentState == "WAITING" || agentState == "COOLDOWN_COMPLETE") {
+                    if (countdownAbove13Since == 0L) countdownAbove13Since = now
                     agentState = "COUNTDOWN"
-                    saveAgent("COUNTDOWN", "Pre-round activity detected. Manual bet marker ready.")
-                    showAgentMarker("BET WINDOW")
-                    postAgentNotification("Bet window detected", "Configured amount: " + (getSharedPreferences(PREFS, MODE_PRIVATE).getString("amount", "20") ?: "20") + " — place manually.")
+                    saveAgent("COUNTDOWN", "Pre-round activity detected. Waiting for countdown > 13.")
+                    if (now - countdownAbove13Since >= 700L && now - lastBetAlert > 5000L) {
+                        lastBetAlert = now
+                        val amount = getSharedPreferences(PREFS, MODE_PRIVATE).getString("amount", "20") ?: "20"
+                        saveAgent("BET_WINDOW", "Countdown appears above 13. Manual bet marker ready.")
+                        showAgentMarker("BET $amount")
+                        postAgentNotification("BET WINDOW", "Countdown appears above 13. Place $amount manually.")
+                    }
                 }
             }
             else -> {
+                countdownAbove13Since = 0L
                 if (agentState == "ROUND_ENDED" && now - lastRoundEnd >= 10000L) {
                     agentState = "COOLDOWN_COMPLETE"
                     saveAgent("COOLDOWN_COMPLETE", "10-second cooldown complete. Waiting for next countdown.")
