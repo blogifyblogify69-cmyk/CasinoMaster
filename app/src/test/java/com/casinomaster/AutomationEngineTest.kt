@@ -47,6 +47,41 @@ class AutomationEngineTest {
         assertEquals(AutomationState.TEST_COLLECTED, machine.snapshot().state)
     }
 
+
+    @Test fun duplicateBetIsBlockedWithinRound() {
+        val clock = FakeClock()
+        val c = controller()
+        val machine = AutomationStateMachine(clock=clock::get, controller=c, logger=AutomationLogger { _,_,_,_,_,_,_,_,_-> })
+        machine.start()
+        machine.observe(GameObservation(countdown=15))
+        machine.observe(GameObservation(countdown=14))
+        machine.observe(GameObservation(countdown=13))
+        assertTrue(c.activeBet > 0.0)
+    }
+
+    @Test fun duplicateCollectIsBlockedWithinRound() {
+        val clock = FakeClock()
+        val c = controller()
+        val machine = AutomationStateMachine(clock=clock::get, controller=c, logger=AutomationLogger { _,_,_,_,_,_,_,_,_-> })
+        machine.start()
+        machine.observe(GameObservation(countdown=15))
+        machine.observe(GameObservation(roundActive=true, multiplier=1.50))
+        val balanceAfterCollect = c.balance
+        machine.observe(GameObservation(roundActive=true, multiplier=2.00))
+        assertEquals(balanceAfterCollect, c.balance, 0.0001)
+    }
+
+    @Test fun roundEndRequiresObservedSignal() {
+        val clock = FakeClock()
+        val c = controller()
+        val machine = AutomationStateMachine(clock=clock::get, controller=c, logger=AutomationLogger { _,_,_,_,_,_,_,_,_-> })
+        machine.start()
+        machine.observe(GameObservation(countdown=15))
+        machine.observe(GameObservation(roundActive=true, multiplier=1.20))
+        machine.observe(GameObservation())
+        assertEquals(AutomationState.ROUND_ACTIVE, machine.snapshot().state)
+    }
+
     @Test fun unreadableValuesDoNotAct() {
         val clock = FakeClock()
         val c = FakeController()
