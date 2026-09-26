@@ -138,7 +138,7 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         root.addView(TextView(this).apply {
-            text = "Workflow:\n1. Add a launchable app.\n2. Save display settings.\n3. Open it with the floating CM button.\n4. Start screen inspection and approve Android's MediaProjection dialog.\n5. For a complete automatic test, use RUN AUTOMATIC DEMO BET + COLLECT TEST. The bundled demo game controller automatically executes its own placeBet() and collect() functions when the simulated conditions are reached: countdown > 13 → BET → multiplier target → COLLECT → round end → 10-second cooldown → repeat.\n\nThis automatic BET/COLLECT execution is only inside the bundled developer-owned demo controller. It does not tap, inject input into, or control another installed APK."
+            text = "Workflow:\n1. Add a launchable app.\n2. Save display settings.\n3. Open it with the floating CM button.\n4. Start screen inspection and approve Android's MediaProjection dialog.\n5. For a complete automatic test, open AUTOMATION TEST. The selected developer-owned demo package is inspected through AccessibilityNodeInfo and MediaProjection OCR. When configured countdown/multiplier values are actually detected, the local DemoGameController executes placeBet() and collect(); no real-money interface is automated.\n\nThis automatic BET/COLLECT execution is only inside the bundled developer-owned demo controller. It does not tap, inject input into, or control another installed APK."
             setPadding(0, 0, 0, 18)
         })
 
