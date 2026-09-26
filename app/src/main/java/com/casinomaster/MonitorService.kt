@@ -13,11 +13,73 @@ import android.os.*
 import android.provider.Settings
 import android.view.*
 import android.widget.*
-import androidx.core.app.NotificationCompat
 import java.nio.ByteBuffer
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+
+sealed class AutomationSafetyResult {
+    data object Ok : AutomationSafetyResult()
+    data class Stop(val reason: String) : AutomationSafetyResult()
+}
+
+/**
+ * Local coordinator used only by the monitor's observation/demo path.
+ * It records state; it never searches for, taps, or injects input into another app.
+ */
+class DemoAutomationCoordinator(private val context: Context) {
+    private var running = false
+
+    fun start() {
+        running = true
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+            .putString("automation_error", "")
+            .putString("automation_demo_state", "RUNNING_LOCAL_ONLY")
+            .apply()
+    }
+
+    fun stop(reason: String) {
+        running = false
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+            .putString("automation_demo_state", "STOPPED")
+            .putString("automation_error", reason)
+            .apply()
+    }
+
+    fun onAccessibilitySnapshot(activePackage: String?, text: List<String>) {
+        if (!running) return
+        val joined = text.take(40).joinToString(" ")
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+            .putString("automation_last_snapshot_package", activePackage ?: "unknown")
+            .putString("automation_last_snapshot", joined)
+            .apply()
+    }
+
+    fun onFrame(image: android.media.Image) {
+        if (!running) return
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
+            .putLong("automation_last_frame", SystemClock.elapsedRealtime())
+            .apply()
+    }
+}
+
+object AutomationSafetyGate {
+    fun check(
+        accessibilityConnected: Boolean,
+        heartbeatAgeMs: Long,
+        activePackage: String?,
+        targetPackage: String?,
+        projectionActive: Boolean
+    ): AutomationSafetyResult {
+        if (!accessibilityConnected) return AutomationSafetyResult.Stop("Accessibility service is not connected.")
+        if (heartbeatAgeMs < 0L || heartbeatAgeMs > 5000L) return AutomationSafetyResult.Stop("Accessibility heartbeat is stale.")
+        if (targetPackage.isNullOrBlank()) return AutomationSafetyResult.Stop("No selected target app.")
+        if (activePackage.isNullOrBlank()) return AutomationSafetyResult.Stop("Active app could not be identified.")
+        if (activePackage != targetPackage) return AutomationSafetyResult.Stop("Selected app is not the active app.")
+        if (!projectionActive) return AutomationSafetyResult.Stop("Screen inspection is not active.")
+        return AutomationSafetyResult.Ok
+    }
+}
 
 class MonitorService : Service() {
     companion object {
@@ -59,7 +121,7 @@ class MonitorService : Service() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         demoAutomation = DemoAutomationCoordinator(this)
         createChannel()
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("CasinoMaster monitor")
             .setContentText("Floating observe-only control is active")
             .setSmallIcon(android.R.drawable.ic_menu_view)
