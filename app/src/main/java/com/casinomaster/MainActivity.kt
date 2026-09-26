@@ -53,6 +53,10 @@ class MainActivity : Activity() {
             text = "OPEN ADDED APP + FLOATING CONTROL"; setOnClickListener { openSelectedApp() }
         })
         root.addView(Button(this).apply {
+            text = "OPEN LOCAL AUTOMATION SIMULATOR"
+            setOnClickListener { startActivity(Intent(this@MainActivity, AutomationSimulatorActivity::class.java)) }
+        })
+        root.addView(Button(this).apply {
             text = "ALLOW FLOATING ICON"
             setOnClickListener {
                 if (!Settings.canDrawOverlays(this@MainActivity))
