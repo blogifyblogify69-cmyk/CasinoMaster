@@ -106,7 +106,6 @@ class AutomationActivity : AppCompatActivity() {
                 refreshStatus()
             }
         })
-        refreshStatus()
 
         rulesBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(TextView(this).apply { text = "Rules"; textSize = 20f; setPadding(0,16,0,8) })
@@ -134,6 +133,7 @@ class AutomationActivity : AppCompatActivity() {
         root.addView(logView)
         refreshLog()
         setContentView(scroll)
+        refreshStatus()
     }
 
     private fun startDemoTest() {
