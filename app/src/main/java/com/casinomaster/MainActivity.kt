@@ -55,10 +55,11 @@ class MainActivity : AppCompatActivity() {
         val selectedLabel = prefs.getString("selected_label", null)
 
         root.addView(TextView(this).apply {
-            text = if (selectedPackage == null) {
-                "No app selected"
+            text = if (selectedPackage != null) {
+                "Selected installed app: " + selectedLabel + "\n" + selectedPackage
             } else {
-                "Selected: " + selectedLabel + "\n" + selectedPackage
+                val apk = prefs.getString("selected_apk_uri", null)
+                if (apk != null) "Selected APK: " + selectedLabel else "No app or APK selected"
             }
             textSize = 17f
             setPadding(18, 18, 18, 18)
@@ -121,7 +122,7 @@ class MainActivity : AppCompatActivity() {
         })
 
         root.addView(TextView(this).apply {
-            text = "Android 11+ package visibility can limit the app list. This picker lists launchable apps visible to the package manager and does not request QUERY_ALL_PACKAGES."
+            text = "Add App now has two sections: Installed Apps shows installed packages, and APK Files lets you add APK files from the phone. APK files are kept as selectable file entries; installing an APK still uses Android's own package installer and confirmation."
             setPadding(0, 0, 0, 18)
         })
 
