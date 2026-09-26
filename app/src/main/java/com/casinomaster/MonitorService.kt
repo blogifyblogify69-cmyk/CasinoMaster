@@ -44,6 +44,10 @@ class MonitorService : Service() {
     private var lastHash = 0L
     private var stable = 0
     private var changed = 0
+    private var agentState = "WAITING"
+    private var lastAgentNotice = 0L
+    private var lastRoundEnd = 0L
+    private var lastFrameTime = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -199,6 +203,14 @@ class MonitorService : Service() {
         })
 
         panel!!.addView(Button(ctx).apply {
+            text = "AGENT STATUS"
+            setOnClickListener {
+                val p = getSharedPreferences(PREFS, MODE_PRIVATE)
+                Toast.makeText(ctx, "Agent: " + (p.getString("agent_state", "WAITING") ?: "WAITING") + "\n" + (p.getString("agent_detail", "") ?: ""), Toast.LENGTH_LONG).show()
+            }
+        })
+
+        panel!!.addView(Button(ctx).apply {
             text = "INSPECTION STATUS"
             setOnClickListener {
                 val p = getSharedPreferences(PREFS, MODE_PRIVATE)
@@ -334,7 +346,10 @@ class MonitorService : Service() {
 
         reader?.setOnImageAvailableListener({ r ->
             val image = r.acquireLatestImage() ?: return@setOnImageAvailableListener
-            try { updateVisualState(hashImage(image)) } finally { image.close() }
+            try {
+                updateVisualState(hashImage(image))
+                inspectGameFrame(image)
+            } finally { image.close() }
         }, handler)
 
         display = projection?.createVirtualDisplay(
@@ -413,6 +428,123 @@ class MonitorService : Service() {
             .putString("monitor_state", state)
             .putString("monitor_detail", detail)
             .apply()
+    }
+
+    private fun inspectGameFrame(image: android.media.Image) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastFrameTime < 250L) return
+        lastFrameTime = now
+        val width = image.width
+        val height = image.height
+        val plane = image.planes.firstOrNull() ?: return
+        val buffer = plane.buffer
+        val pixelStride = plane.pixelStride
+        val rowStride = plane.rowStride
+        val center = sampleRegion(buffer, width, height, rowStride, pixelStride, 0.25f, 0.18f, 0.78f, 0.72f)
+        val lowerRight = sampleRegion(buffer, width, height, rowStride, pixelStride, 0.72f, 0.58f, 0.98f, 0.98f)
+        val leftPanel = sampleRegion(buffer, width, height, rowStride, pixelStride, 0.00f, 0.05f, 0.24f, 0.55f)
+        val target = getSharedPreferences(PREFS, MODE_PRIVATE).getString("target", "1.50") ?: "1.50"
+
+        when {
+            center.greenRatio > 0.015 && center.brightRatio > 0.045 -> {
+                if (agentState != "ROUND_ACTIVE") {
+                    agentState = "ROUND_ACTIVE"
+                    saveAgent("ROUND_ACTIVE", "Active airplane/multiplier area detected.")
+                    showAgentMarker("ROUND ACTIVE")
+                }
+                if (center.greenRatio > 0.035 && now - lastAgentNotice > 2500L) {
+                    lastAgentNotice = now
+                    agentState = "TARGET_APPROACHING"
+                    saveAgent("TARGET_APPROACHING", "Active flight detected. Configured target $target x. Manual collect required.")
+                    showAgentMarker("TARGET $target x")
+                    postAgentNotification("Collect target approaching", "Configured target: $target x — collect manually.")
+                }
+            }
+            lowerRight.greenRatio > 0.012 || leftPanel.activityRatio > 0.020 -> {
+                if (agentState == "ROUND_ACTIVE" || agentState == "TARGET_APPROACHING") {
+                    lastRoundEnd = now
+                    agentState = "ROUND_ENDED"
+                    saveAgent("ROUND_ENDED", "Round activity dropped. Waiting 10 seconds.")
+                    showAgentMarker("ROUND ENDED • WAIT 10s")
+                    postAgentNotification("Round ended", "Waiting 10 seconds for the next round.")
+                } else if (agentState == "WAITING" || agentState == "COOLDOWN_COMPLETE") {
+                    agentState = "COUNTDOWN"
+                    saveAgent("COUNTDOWN", "Pre-round activity detected. Manual bet marker ready.")
+                    showAgentMarker("BET WINDOW")
+                    postAgentNotification("Bet window detected", "Configured amount: " + (getSharedPreferences(PREFS, MODE_PRIVATE).getString("amount", "20") ?: "20") + " — place manually.")
+                }
+            }
+            else -> {
+                if (agentState == "ROUND_ENDED" && now - lastRoundEnd >= 10000L) {
+                    agentState = "COOLDOWN_COMPLETE"
+                    saveAgent("COOLDOWN_COMPLETE", "10-second cooldown complete. Waiting for next countdown.")
+                    showAgentMarker("WAIT NEXT ROUND")
+                }
+            }
+        }
+        if (agentState == "ROUND_ENDED" && now - lastRoundEnd < 10000L) agentState = "COOLDOWN"
+    }
+
+    private data class RegionStats(val greenRatio: Double, val brightRatio: Double, val activityRatio: Double)
+
+    private fun sampleRegion(buffer: ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int, leftF: Float, topF: Float, rightF: Float, bottomF: Float): RegionStats {
+        val left = (width * leftF).toInt().coerceIn(0, width - 1)
+        val top = (height * topF).toInt().coerceIn(0, height - 1)
+        val right = (width * rightF).toInt().coerceIn(left + 1, width)
+        val bottom = (height * bottomF).toInt().coerceIn(top + 1, height)
+        val stepX = max(8, (right - left) / 36)
+        val stepY = max(8, (bottom - top) / 24)
+        var total = 0
+        var green = 0
+        var bright = 0
+        var active = 0
+        var y = top
+        while (y < bottom) {
+            var x = left
+            while (x < right) {
+                val pos = y * rowStride + x * pixelStride
+                if (pos + 2 < buffer.limit()) {
+                    val r = buffer.get(pos).toInt() and 255
+                    val g = buffer.get(pos + 1).toInt() and 255
+                    val b = buffer.get(pos + 2).toInt() and 255
+                    val mx = max(r, max(g, b))
+                    val mn = min(r, min(g, b))
+                    total++
+                    if (g > r * 1.25 && g > b * 1.08 && g > 90) green++
+                    if (mx > 205 && mn > 130) bright++
+                    if (abs(r - g) + abs(g - b) > 85) active++
+                }
+                x += stepX
+            }
+            y += stepY
+        }
+        if (total == 0) return RegionStats(0.0, 0.0, 0.0)
+        return RegionStats(green.toDouble() / total, bright.toDouble() / total, active.toDouble() / total)
+    }
+
+    private fun saveAgent(state: String, detail: String) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+            .putString("agent_state", state)
+            .putString("agent_detail", detail)
+            .apply()
+    }
+
+    private fun showAgentMarker(text: String) {
+        val b = bubble ?: return
+        b.text = "CM\n$text"
+        handler?.postDelayed({ if (bubble != null) bubble?.text = "CM" }, 2200L)
+    }
+
+    private fun postAgentNotification(title: String, text: String) {
+        val n = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("CasinoMaster • $title")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setAutoCancel(true)
+            .build()
+        getSystemService(NotificationManager::class.java).notify(
+            (NOTIFICATION_ID + 1 + (SystemClock.elapsedRealtime() % 1000)).toInt(), n
+        )
     }
 
     private fun stopProjection() {
