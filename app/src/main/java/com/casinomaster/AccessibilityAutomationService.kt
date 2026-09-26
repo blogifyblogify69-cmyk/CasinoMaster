@@ -9,6 +9,7 @@ class AccessibilityAutomationService : AccessibilityService() {
     private lateinit var store: AutomationProfileStore
     private val retryCounts = mutableMapOf<String, Int>()
     private val lastActionAt = mutableMapOf<String, Long>()
+    private val waitingSince = mutableMapOf<String, Long>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -29,25 +30,36 @@ class AccessibilityAutomationService : AccessibilityService() {
         }
         profile.rules.forEach { rule ->
             if (!rule.action.equals("CLICK", true)) return@forEach
-            val node = findMatch(root, rule) ?: return@forEach
+            val node = findMatch(root, rule)
+            if (node == null) {
+                val key = ruleKey(rule)
+                val started = waitingSince.getOrPut(key) { SystemClock.elapsedRealtime() }
+                if (SystemClock.elapsedRealtime() - started >= rule.timeoutMs) {
+                    store.appendLog(stamp() + " TIMEOUT " + key + " after=" + rule.timeoutMs + "ms")
+                    waitingSince.remove(key)
+                }
+                return@forEach
+            }
+            waitingSince.remove(ruleKey(rule))
             val key = ruleKey(rule)
             val now = SystemClock.elapsedRealtime()
             if (now - (lastActionAt[key] ?: 0L) < 750L) return@forEach
             val attempts = retryCounts[key] ?: 0
             if (attempts > rule.maxRetries) return@forEach
-            if (!node.isEnabled || !node.isVisibleToUser || !node.isClickable) {
+            val actionNode = clickableAncestor(node) ?: node
+            if (!actionNode.isEnabled || !actionNode.isVisibleToUser || !actionNode.isClickable) {
                 store.appendLog(stamp() + " SKIP " + describe(node))
                 return@forEach
             }
             lastActionAt[key] = now
-            val success = try { node.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
+            val success = try { actionNode.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
             catch (e: Exception) {
                 store.appendLog(stamp() + " ERROR " + ruleKey(rule) + " " + (e.message ?: "click failed"))
                 false
             }
             if (success) {
                 retryCounts[key] = 0
-                store.appendLog(stamp() + " CLICK " + describe(node))
+                store.appendLog(stamp() + " CLICK " + describe(actionNode))
             } else {
                 retryCounts[key] = attempts + 1
                 store.appendLog(stamp() + " RETRY " + ruleKey(rule) + " attempt=" + (attempts + 1) + "/" + (rule.maxRetries + 1))
@@ -89,6 +101,15 @@ class AccessibilityAutomationService : AccessibilityService() {
         node.text?.toString()?.takeIf { it.isNotBlank() }?.let(out::add)
         node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let(out::add)
         for (i in 0 until node.childCount) node.getChild(i)?.let { collectStrings(it, out) }
+    }
+
+    private fun clickableAncestor(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        var current: AccessibilityNodeInfo? = node
+        repeat(6) {
+            if (current?.isClickable == true) return current
+            current = current?.parent
+        }
+        return null
     }
 
     private fun describe(node: AccessibilityNodeInfo) = "text=" + node.text + ",desc=" + node.contentDescription + ",id=" + node.viewIdResourceName
