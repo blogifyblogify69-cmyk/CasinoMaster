@@ -1,70 +1,62 @@
 package com.casinomaster
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
+import java.util.Locale
 
-/** Local end-to-end workflow test. BET/COLLECT call only the developer-owned demo game API. */
-class AutoTestEngine(context: Context, private val onEvent: (String, String) -> Unit) {
+/**
+ * Compatibility adapter for the developer-owned demo test engine.
+ * It consumes real observations; it does not synthesize countdowns or multipliers.
+ */
+class AutoTestEngine(
+    context: Context,
+    private val onEvent: (String, String) -> Unit
+) {
     private val appContext = context.applicationContext
-    private val handler = Handler(Looper.getMainLooper())
     private var running = false
-    private var cycle = 0
-    private val game = DemoGameController { action ->
-        onEvent("GAME_ACTION", action)
-    }
+    private lateinit var machine: AutomationStateMachine
+    private val controller = DemoGameController { action -> onEvent("GAME_ACTION", action) }
 
     fun start() {
         if (running) return
+        val prefs = appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val amount = prefs.getString("amount", "20")?.toDoubleOrNull()?.takeIf { it > 0 } ?: 20.0
+        val threshold = prefs.getString("countdown_threshold", "15")?.toIntOrNull()?.coerceIn(1, 300) ?: 15
+        val target = prefs.getString("target", "1.50")?.toDoubleOrNull()?.takeIf { it >= 1.0 } ?: 1.50
+        val cooldown = prefs.getString("cooldown_seconds", "10")?.toLongOrNull()?.coerceIn(1, 300)?.times(1000L) ?: 10_000L
+        machine = AutomationStateMachine(
+            betThreshold = threshold,
+            betAmount = amount,
+            targetMultiplier = target,
+            cooldownMs = cooldown,
+            logger = AutomationLogger { roundId, timestamp, state, countdown, multiplier, action, result, confidence, reason ->
+                val line = buildString {
+                    append(timestamp).append(" ROUND_ID=").append(roundId)
+                    append(" state=").append(state)
+                    if (countdown != null) append(" countdown=").append(countdown)
+                    if (multiplier != null) append(" multiplier=").append("%.2f".format(Locale.US, multiplier))
+                    if (action != null) append(" action=").append(action)
+                    if (result != null) append(" result=").append(result)
+                    append(" confidence=").append("%.2f".format(Locale.US, confidence))
+                    append(" reason=").append(reason)
+                }
+                AutomationProfileStore(appContext).appendLog(line)
+                onEvent("AUTOMATION", line)
+            },
+            controller = controller
+        )
         running = true
-        cycle = 0
-        runCycle()
+        machine.start()
+    }
+
+    fun observe(observation: GameObservation) {
+        if (running) machine.observe(observation)
     }
 
     fun stop() {
+        if (running) machine.stop()
         running = false
-        handler.removeCallbacksAndMessages(null)
-        save("OFF", "Automatic end-to-end test stopped.")
+        onEvent("AUTOMATION", "Stopped.")
     }
 
-    private fun runCycle() {
-        if (!running) return
-        cycle++
-        game.reset()
-        val prefs = appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val amount = prefs.getString("amount", "20") ?: "20"
-        val target = prefs.getString("target", "1.50") ?: "1.50"
-
-        step(0, "COUNTDOWN", "Simulated countdown started at 30.")
-        step(1000, "COUNTDOWN > 13", "Simulated countdown reached the >13 threshold.")
-        step(1800, "BET_REQUESTED", "Calling the owned-game placeBet($amount) API.") {
-            val ok = game.placeBet(amount.toDoubleOrNull() ?: 0.0)
-            if (!ok) onEvent("BET_FAILED", "Owned-game placeBet() rejected the test bet.")
-        }
-        step(3000, "ROUND_ACTIVE", "Simulated airplane/multiplier started.")
-        step(5500, "MULTIPLIER_TARGET", "Simulated multiplier reached $target x.")
-        step(5600, "COLLECT_REQUESTED", "Calling the owned-game collect($target) API.") {
-            val payout = game.collect(target.toDoubleOrNull() ?: 1.0)
-            if (payout == null) onEvent("COLLECT_FAILED", "Owned-game collect() rejected the test collect.")
-        }
-        step(7000, "ROUND_ENDED", "Simulated round ended.")
-        step(17000, "COOLDOWN_COMPLETE", "10-second cooldown completed.")
-        step(17500, "NEXT_ROUND", "Starting next simulated cycle.") { runCycle() }
-    }
-
-    private fun step(delay: Long, state: String, detail: String, after: (() -> Unit)? = null) {
-        handler.postDelayed({
-            if (!running) return@postDelayed
-            save(state, detail)
-            onEvent(state, detail)
-            after?.invoke()
-        }, delay)
-    }
-
-    private fun save(state: String, detail: String) {
-        appContext.getSharedPreferences("settings", Context.MODE_PRIVATE).edit()
-            .putString("test_state", state)
-            .putString("test_detail", detail)
-            .apply()
-    }
+    fun snapshot(): AutomationSnapshot? = if (::machine.isInitialized) machine.snapshot() else null
 }
