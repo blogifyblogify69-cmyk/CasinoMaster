@@ -46,7 +46,7 @@ class CountdownDetector {
     private val pattern = Regex("""(?<![\d.])(\d{1,3})(?:\s*s)?(?![\d.])""", RegexOption.IGNORE_CASE)
 
     fun parse(text: String): Int? {
-        val explicitSeconds = Regex("""(?i)\\b(\\d{1,3})\\s*(?:seconds?|secs?|s)\\b""")
+        val explicitSeconds = Regex("""(?i)\b(\d{1,3})\s*(?:seconds?|secs?|s)\b""")
             .find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
         if (explicitSeconds != null && explicitSeconds in 0..300) return explicitSeconds
         val exact = text.trim().toIntOrNull()
