@@ -63,3 +63,12 @@ GitHub Actions builds the debug APK and uploads it as a workflow artifact.
 ## Security
 
 Never bypass Play Protect or Android permission screens. Use trusted distribution and keep production signing keys private.
+
+
+## Automatic end-to-end test mode
+
+The app includes **RUN AUTOMATIC END-TO-END TEST**. It runs a deterministic local simulation of:
+
+`COUNTDOWN → COUNTDOWN > 13 → BET_REQUESTED → ROUND_ACTIVE → MULTIPLIER_TARGET → COLLECT_REQUESTED → ROUND_ENDED → 10-second cooldown → repeat`
+
+The BET and COLLECT events are internal test callbacks only. The test does not click another app or perform real wagering/cash-out actions.
