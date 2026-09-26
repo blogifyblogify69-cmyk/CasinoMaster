@@ -90,6 +90,11 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 12 })
 
         root.addView(Button(this).apply {
+            text = "UI AUTOMATION PROFILES"
+            setOnClickListener { startActivity(Intent(this@MainActivity, AutomationActivity::class.java)) }
+        }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 12 })
+
+        root.addView(Button(this).apply {
             text = "STOP AUTOMATIC TEST"
             setOnClickListener {
                 autoTest?.stop()
