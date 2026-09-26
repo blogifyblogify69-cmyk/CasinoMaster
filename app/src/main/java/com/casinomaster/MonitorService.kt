@@ -517,7 +517,7 @@ class MonitorService : Service() {
         }
 
         val target = prefs.getString("selected_package", null)
-        val activePackage = prefs.getString("accessibility_package", null)
+        val activePackage = prefs.getString("accessibility_active_package", prefs.getString("accessibility_package", null))
         if (target.isNullOrBlank() || activePackage != target) {
             demoAutomation.stop("Target package changed; automation stopped.")
             prefs.edit().putBoolean("automation_running", false).apply()
