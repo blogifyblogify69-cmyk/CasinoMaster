@@ -15,10 +15,12 @@ class AccessibilityAutomationService : AccessibilityService() {
     private val heartbeatHandler = Handler(Looper.getMainLooper())
     private val heartbeat = object : Runnable {
         override fun run() {
+            val activePackage = rootInActiveWindow?.packageName?.toString()
             if (::store.isInitialized) store.appendLog(stamp() + " ACCESSIBILITY_HEARTBEAT")
             getSharedPreferences("settings", MODE_PRIVATE).edit()
                 .putBoolean("accessibility_connected", true)
                 .putLong("accessibility_heartbeat", SystemClock.elapsedRealtime())
+                .putString("accessibility_active_package", activePackage ?: "")
                 .apply()
             heartbeatHandler.postDelayed(this, 1000L)
         }
@@ -37,6 +39,10 @@ class AccessibilityAutomationService : AccessibilityService() {
         val profile = store.load() ?: return
         if (!profile.enabled || !store.isRunning() || store.isPaused()) return
         val packageName = event?.packageName?.toString() ?: return
+        getSharedPreferences("settings", MODE_PRIVATE).edit()
+            .putString("accessibility_active_package", packageName)
+            .putLong("accessibility_heartbeat", SystemClock.elapsedRealtime())
+            .apply()
         if (packageName != profile.targetPackage) return
         val root = rootInActiveWindow ?: return
         val snapshot = mutableListOf<String>()
