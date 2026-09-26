@@ -2,6 +2,8 @@ package com.casinomaster
 
 import android.accessibilityservice.AccessibilityService
 import android.os.SystemClock
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -10,11 +12,24 @@ class AccessibilityAutomationService : AccessibilityService() {
     private val retryCounts = mutableMapOf<String, Int>()
     private val lastActionAt = mutableMapOf<String, Long>()
     private val waitingSince = mutableMapOf<String, Long>()
+    private val heartbeatHandler = Handler(Looper.getMainLooper())
+    private val heartbeat = object : Runnable {
+        override fun run() {
+            if (::store.isInitialized) store.appendLog(stamp() + " ACCESSIBILITY_HEARTBEAT")
+            getSharedPreferences("settings", MODE_PRIVATE).edit()
+                .putBoolean("accessibility_connected", true)
+                .putLong("accessibility_heartbeat", SystemClock.elapsedRealtime())
+                .apply()
+            heartbeatHandler.postDelayed(this, 1000L)
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         store = AutomationProfileStore(this)
         store.appendLog(stamp() + " SERVICE_CONNECTED")
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("accessibility_connected", true).apply()
+        heartbeatHandler.post(heartbeat)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -24,6 +39,14 @@ class AccessibilityAutomationService : AccessibilityService() {
         val packageName = event?.packageName?.toString() ?: return
         if (packageName != profile.targetPackage) return
         val root = rootInActiveWindow ?: return
+        val snapshot = mutableListOf<String>()
+        collectStrings(root, snapshot)
+        getSharedPreferences("settings", MODE_PRIVATE).edit()
+            .putString("accessibility_package", packageName)
+            .putString("accessibility_text", snapshot.joinToString(" "))
+            .putLong("accessibility_heartbeat", SystemClock.elapsedRealtime())
+            .putBoolean("accessibility_connected", true)
+            .apply()
         if (containsSafetySensitiveContent(root)) {
             store.appendLog(stamp() + " SAFETY_GUARD blocked automation on " + packageName)
             return
@@ -68,7 +91,15 @@ class AccessibilityAutomationService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("accessibility_connected", false).apply()
+        heartbeatHandler.removeCallbacksAndMessages(null)
         if (::store.isInitialized) store.appendLog(stamp() + " SERVICE_INTERRUPTED")
+    }
+
+    override fun onDestroy() {
+        heartbeatHandler.removeCallbacksAndMessages(null)
+        getSharedPreferences("settings", MODE_PRIVATE).edit().putBoolean("accessibility_connected", false).apply()
+        super.onDestroy()
     }
 
     private fun findMatch(root: AccessibilityNodeInfo, rule: AutomationRule): AccessibilityNodeInfo? {
