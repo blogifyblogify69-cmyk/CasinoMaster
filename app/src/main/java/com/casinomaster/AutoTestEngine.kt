@@ -4,12 +4,15 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 
-/** Local end-to-end workflow simulation. It never clicks another app. */
+/** Local end-to-end workflow test. BET/COLLECT call only the developer-owned demo game API. */
 class AutoTestEngine(context: Context, private val onEvent: (String, String) -> Unit) {
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     private var running = false
     private var cycle = 0
+    private val game = DemoGameController { action ->
+        onEvent("GAME_ACTION", action)
+    }
 
     fun start() {
         if (running) return
@@ -27,16 +30,23 @@ class AutoTestEngine(context: Context, private val onEvent: (String, String) -> 
     private fun runCycle() {
         if (!running) return
         cycle++
+        game.reset()
         val prefs = appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
         val amount = prefs.getString("amount", "20") ?: "20"
         val target = prefs.getString("target", "1.50") ?: "1.50"
 
         step(0, "COUNTDOWN", "Simulated countdown started at 30.")
         step(1000, "COUNTDOWN > 13", "Simulated countdown reached the >13 threshold.")
-        step(1800, "BET_REQUESTED", "TEST EVENT: internal bet request for $amount.")
+        step(1800, "BET_REQUESTED", "Calling the owned-game placeBet($amount) API.") {
+            val ok = game.placeBet(amount.toDoubleOrNull() ?: 0.0)
+            if (!ok) onEvent("BET_FAILED", "Owned-game placeBet() rejected the test bet.")
+        }
         step(3000, "ROUND_ACTIVE", "Simulated airplane/multiplier started.")
         step(5500, "MULTIPLIER_TARGET", "Simulated multiplier reached $target x.")
-        step(5600, "COLLECT_REQUESTED", "TEST EVENT: internal collect request at $target x.")
+        step(5600, "COLLECT_REQUESTED", "Calling the owned-game collect($target) API.") {
+            val payout = game.collect(target.toDoubleOrNull() ?: 1.0)
+            if (payout == null) onEvent("COLLECT_FAILED", "Owned-game collect() rejected the test collect.")
+        }
         step(7000, "ROUND_ENDED", "Simulated round ended.")
         step(17000, "COOLDOWN_COMPLETE", "10-second cooldown completed.")
         step(17500, "NEXT_ROUND", "Starting next simulated cycle.") { runCycle() }
