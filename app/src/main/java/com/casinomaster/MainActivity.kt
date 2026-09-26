@@ -25,6 +25,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: android.content.SharedPreferences
     private var pendingCaptureAfterOverlay = false
+    private var autoTest: AutoTestEngine? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,6 +84,20 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { startCaptureFlow() }
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
+        root.addView(Button(this).apply {
+            text = "RUN AUTOMATIC END-TO-END TEST"
+            setOnClickListener { startAutoTest() }
+        }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 12 })
+
+        root.addView(Button(this).apply {
+            text = "STOP AUTOMATIC TEST"
+            setOnClickListener {
+                autoTest?.stop()
+                autoTest = null
+                Toast.makeText(this@MainActivity, "Automatic test stopped", Toast.LENGTH_SHORT).show()
+            }
+        }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
+
         root.addView(TextView(this).apply {
             text = "Display settings"
             textSize = 21f
@@ -117,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         root.addView(TextView(this).apply {
-            text = "Workflow:\n1. Add a launchable app.\n2. Save display settings.\n3. Open it with the floating CM button.\n4. Start screen inspection and approve Android's MediaProjection dialog.\n5. Move the manual BET and COLLECT markers to the locations you want to remember.\n\nThe monitor only observes screen changes. It never taps, places bets, or presses cash-out."
+            text = "Workflow:\n1. Add a launchable app.\n2. Save display settings.\n3. Open it with the floating CM button.\n4. Start screen inspection and approve Android's MediaProjection dialog.\n5. For a complete automatic test, use RUN AUTOMATIC END-TO-END TEST. It simulates countdown → bet request → round → target → collect request → round end → 10-second cooldown → repeat.\n\nThe automatic test uses internal simulation events only. It never taps another app or places a real bet/cash-out."
             setPadding(0, 0, 0, 18)
         })
 
@@ -127,6 +142,15 @@ class MainActivity : AppCompatActivity() {
         })
 
         setContentView(scroll)
+    }
+
+    private fun startAutoTest() {
+        autoTest?.stop()
+        autoTest = AutoTestEngine(this) { state, detail ->
+            Toast.makeText(this, "$state: $detail", Toast.LENGTH_SHORT).show()
+        }
+        autoTest?.start()
+        Toast.makeText(this, "Automatic end-to-end test started", Toast.LENGTH_SHORT).show()
     }
 
     private fun showAppPicker() {
@@ -264,6 +288,8 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         // Closing the main CasinoMaster activity also stops its monitor service,
         // projection session, floating bubble, markers and panel.
+        autoTest?.stop()
+        autoTest = null
         stopService(Intent(this, MonitorService::class.java))
         super.onDestroy()
     }
