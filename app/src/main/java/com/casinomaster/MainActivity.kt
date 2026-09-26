@@ -85,7 +85,7 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         root.addView(Button(this).apply {
-            text = "RUN AUTOMATIC END-TO-END TEST"
+            text = "RUN AUTOMATIC DEMO BET + COLLECT TEST"
             setOnClickListener { startAutoTest() }
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 12 })
 
@@ -132,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         root.addView(TextView(this).apply {
-            text = "Workflow:\n1. Add a launchable app.\n2. Save display settings.\n3. Open it with the floating CM button.\n4. Start screen inspection and approve Android's MediaProjection dialog.\n5. For a complete automatic test, use RUN AUTOMATIC END-TO-END TEST. It simulates countdown → bet request → round → target → collect request → round end → 10-second cooldown → repeat.\n\nThe automatic test uses internal simulation events only. It never taps another app or places a real bet/cash-out."
+            text = "Workflow:\n1. Add a launchable app.\n2. Save display settings.\n3. Open it with the floating CM button.\n4. Start screen inspection and approve Android's MediaProjection dialog.\n5. For a complete automatic test, use RUN AUTOMATIC DEMO BET + COLLECT TEST. The bundled demo game controller automatically executes its own placeBet() and collect() functions when the simulated conditions are reached: countdown > 13 → BET → multiplier target → COLLECT → round end → 10-second cooldown → repeat.\n\nThis automatic BET/COLLECT execution is only inside the bundled developer-owned demo controller. It does not tap, inject input into, or control another installed APK."
             setPadding(0, 0, 0, 18)
         })
 
