@@ -25,7 +25,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: android.content.SharedPreferences
     private var pendingCaptureAfterOverlay = false
-    private var autoTest: AutoTestEngine? = null
+    private var pendingDemoAutomation = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,8 +85,8 @@ class MainActivity : AppCompatActivity() {
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
         root.addView(Button(this).apply {
-            text = "RUN AUTOMATIC DEMO BET + COLLECT TEST"
-            setOnClickListener { startAutoTest() }
+            text = "OPEN AUTOMATION TEST"
+            setOnClickListener { startActivity(Intent(this@MainActivity, AutomationActivity::class.java)) }
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 12 })
 
         root.addView(Button(this).apply {
@@ -97,9 +97,10 @@ class MainActivity : AppCompatActivity() {
         root.addView(Button(this).apply {
             text = "STOP AUTOMATIC TEST"
             setOnClickListener {
-                autoTest?.stop()
-                autoTest = null
-                Toast.makeText(this@MainActivity, "Automatic test stopped", Toast.LENGTH_SHORT).show()
+                pendingDemoAutomation = false
+                prefs.edit().putBoolean("automation_running", false).apply()
+                stopService(Intent(this@MainActivity, MonitorService::class.java))
+                Toast.makeText(this@MainActivity, "Automatic demo test stopped", Toast.LENGTH_SHORT).show()
             }
         }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = 18 })
 
@@ -147,15 +148,6 @@ class MainActivity : AppCompatActivity() {
         })
 
         setContentView(scroll)
-    }
-
-    private fun startAutoTest() {
-        autoTest?.stop()
-        autoTest = AutoTestEngine(this) { state, detail ->
-            Toast.makeText(this, "$state: $detail", Toast.LENGTH_SHORT).show()
-        }
-        autoTest?.start()
-        Toast.makeText(this, "Automatic end-to-end test started", Toast.LENGTH_SHORT).show()
     }
 
     private fun showAppPicker() {
@@ -269,6 +261,7 @@ class MainActivity : AppCompatActivity() {
     private fun startMonitorService(showOverlay: Boolean, resultCode: Int? = null, data: Intent? = null) {
         val serviceIntent = Intent(this, MonitorService::class.java)
             .putExtra(MonitorService.EXTRA_SHOW_OVERLAY, showOverlay)
+            .putExtra(MonitorService.EXTRA_DEMO_AUTOMATION, pendingDemoAutomation)
         if (resultCode != null && data != null) {
             serviceIntent.putExtra(MonitorService.EXTRA_RESULT_CODE, resultCode)
             serviceIntent.putExtra(MonitorService.EXTRA_RESULT_DATA, data)
@@ -293,8 +286,8 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         // Closing the main CasinoMaster activity also stops its monitor service,
         // projection session, floating bubble, markers and panel.
-        autoTest?.stop()
-        autoTest = null
+        pendingDemoAutomation = false
+        prefs.edit().putBoolean("automation_running", false).apply()
         stopService(Intent(this, MonitorService::class.java))
         super.onDestroy()
     }
@@ -309,6 +302,7 @@ class MainActivity : AppCompatActivity() {
         } else if (requestCode == REQUEST_CAPTURE) {
             if (resultCode == Activity.RESULT_OK && data != null) {
                 startMonitorService(true, resultCode, data)
+                pendingDemoAutomation = false
                 prefs.getString("selected_package", null)?.let { openTarget(it) }
             } else {
                 Toast.makeText(this, "Screen inspection was cancelled.", Toast.LENGTH_SHORT).show()
