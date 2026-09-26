@@ -216,6 +216,20 @@ class MonitorService : Service() {
             setOnClickListener { removePanel() }
         })
 
+        panel!!.addView(Button(ctx).apply {
+            text = "STOP WORKING"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(Color.rgb(190, 35, 35))
+            setOnClickListener {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                    .putString("monitor_state", "OFF")
+                    .putString("monitor_detail", "Stopped by user.")
+                    .apply()
+                stopSelf()
+            }
+        })
+
+
         val params = WindowManager.LayoutParams(
             min(340, resources.displayMetrics.widthPixels - 24),
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -418,6 +432,13 @@ class MonitorService : Service() {
             val channel = NotificationChannel(CHANNEL_ID, "CasinoMaster monitor", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        // If the user removes CasinoMaster from the recent-apps/task list,
+        // stop the monitor service and all floating windows as well.
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
