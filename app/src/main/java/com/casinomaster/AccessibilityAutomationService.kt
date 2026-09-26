@@ -49,7 +49,7 @@ class AccessibilityAutomationService : AccessibilityService() {
         collectStrings(root, snapshot)
         getSharedPreferences("settings", MODE_PRIVATE).edit()
             .putString("accessibility_package", packageName)
-            .putString("accessibility_text", snapshot.joinToString(" "))
+            .putString("accessibility_text", snapshot.joinToString("\u001F"))
             .putLong("accessibility_heartbeat", SystemClock.elapsedRealtime())
             .putBoolean("accessibility_connected", true)
             .apply()
