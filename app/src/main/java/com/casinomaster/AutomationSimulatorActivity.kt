@@ -146,8 +146,9 @@ class AutomationSimulatorActivity : Activity() {
     private fun triggerA() {
         phase = Phase.WAITING_FOR_15
         secondsSinceB = 0
+        simulatedTimer = 30
         lastAction = "A"
-        appendLog("Cycle $cycle: 22 seconds elapsed → TARGET A triggered once.")
+        appendLog("Cycle $cycle: 22 seconds elapsed → TARGET A triggered once. Timer reset to 30 for the next cycle.")
     }
 
     private fun toggleRunning() {
