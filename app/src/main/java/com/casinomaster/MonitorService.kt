@@ -392,7 +392,7 @@ class MonitorService : Service() {
 
     private fun startProjection(code: Int, data: Intent) {
         if (Build.VERSION.SDK_INT >= 29) {
-            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            val notification = Notification.Builder(this, CHANNEL_ID)
                 .setContentTitle("CasinoMaster monitor")
                 .setContentText("Screen inspection is active")
                 .setSmallIcon(android.R.drawable.ic_menu_view)
@@ -647,7 +647,7 @@ class MonitorService : Service() {
     }
 
     private fun postAgentNotification(title: String, text: String) {
-        val n = NotificationCompat.Builder(this, CHANNEL_ID)
+        val n = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("CasinoMaster • $title")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_view)
