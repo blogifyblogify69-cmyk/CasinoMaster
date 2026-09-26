@@ -56,7 +56,7 @@ class AutomationActivity : AppCompatActivity() {
         root.addView(Button(this).apply { text = "PAUSE / RESUME"; setOnClickListener { val next = !store.isPaused(); store.setPaused(next); store.appendLog(if (next) "PAUSED" else "RESUMED"); refreshLog() } })
         root.addView(Button(this).apply { text = "STOP AUTOMATION"; setOnClickListener { store.setRunning(false); store.setPaused(false); store.appendLog("STOP_AUTOMATION"); refreshLog() } })
         root.addView(Button(this).apply { text = "CLEAR ACTION LOG"; setOnClickListener { store.clearLog(); refreshLog() } })
-        logView = TextView(this).apply { setTextColor(Color.DKGRAY); setPadding(0,16,0,0); textIsSelectable = true }
+        logView = TextView(this).apply { setTextColor(Color.DKGRAY); setPadding(0,16,0,0); setTextIsSelectable(true) }
         root.addView(logView)
         refreshLog()
         setContentView(scroll)
@@ -66,14 +66,14 @@ class AutomationActivity : AppCompatActivity() {
 
     private fun addRuleRow(rule: AutomationRule) {
         val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(12,12,12,12); setBackgroundColor(Color.rgb(240,240,240)) }
-        val text = field("Visible text (optional)", rule.text ?: "")
+        val textField = field("Visible text (optional)", rule.text ?: "")
         val desc = field("contentDescription (optional)", rule.contentDescription ?: "")
         val id = field("Resource/view ID (optional)", rule.viewId ?: "")
         val cls = field("Accessibility class (optional)", rule.className ?: "")
         val timeout = field("Timeout ms", rule.timeoutMs.toString())
         val retries = field("Max retries", rule.maxRetries.toString())
-        card.addView(text); card.addView(desc); card.addView(id); card.addView(cls); card.addView(timeout); card.addView(retries)
-        card.tag = listOf(text, desc, id, cls, timeout, retries)
+        card.addView(textField); card.addView(desc); card.addView(id); card.addView(cls); card.addView(timeout); card.addView(retries)
+        card.tag = listOf(textField, desc, id, cls, timeout, retries)
         card.addView(Button(this).apply { text = "REMOVE RULE"; setOnClickListener { rulesBox.removeView(card) } })
         rulesBox.addView(card, LinearLayout.LayoutParams(-1,-2).apply { bottomMargin = 10 })
     }
