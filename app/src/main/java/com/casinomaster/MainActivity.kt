@@ -261,6 +261,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        // Closing the main CasinoMaster activity also stops its monitor service,
+        // projection session, floating bubble, markers and panel.
+        stopService(Intent(this, MonitorService::class.java))
+        super.onDestroy()
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_OVERLAY) {
