@@ -24,6 +24,7 @@ class MonitorService : Service() {
         const val EXTRA_SHOW_OVERLAY = "show_overlay"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_RESULT_DATA = "result_data"
+        const val EXTRA_DEMO_AUTOMATION = "demo_automation"
         private const val CHANNEL_ID = "casino_monitor"
         private const val NOTIFICATION_ID = 77
         private const val PREFS = "settings"
@@ -51,10 +52,12 @@ class MonitorService : Service() {
     private var countdownAbove13Since = 0L
     private var lastBetAlert = 0L
     private var lastCollectAlert = 0L
+    private lateinit var demoAutomation: DemoAutomationCoordinator
 
     override fun onCreate() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        demoAutomation = DemoAutomationCoordinator(this)
         createChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("CasinoMaster monitor")
@@ -75,6 +78,10 @@ class MonitorService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.getBooleanExtra(EXTRA_SHOW_OVERLAY, false) == true) showBubble()
+        if (intent?.getBooleanExtra(EXTRA_DEMO_AUTOMATION, false) == true) {
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putBoolean("automation_running", true).apply()
+            demoAutomation.start()
+        }
         val code = intent?.getIntExtra(EXTRA_RESULT_CODE, Int.MIN_VALUE) ?: Int.MIN_VALUE
         val data = if (Build.VERSION.SDK_INT >= 33) {
             intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -352,6 +359,7 @@ class MonitorService : Service() {
             try {
                 updateVisualState(hashImage(image))
                 inspectGameFrame(image)
+                feedDemoAutomation(image)
             } finally { image.close() }
         }, handler)
 
@@ -495,6 +503,34 @@ class MonitorService : Service() {
         if (agentState == "ROUND_ENDED" && now - lastRoundEnd < 10000L) agentState = "COOLDOWN"
     }
 
+
+    private fun feedDemoAutomation(image: android.media.Image) {
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        if (!prefs.getBoolean("automation_running", false)) return
+
+        val heartbeat = prefs.getLong("accessibility_heartbeat", 0L)
+        val connected = prefs.getBoolean("accessibility_connected", false)
+        if (!connected || SystemClock.elapsedRealtime() - heartbeat > 2500L) {
+            demoAutomation.stop("AccessibilityService disconnected or heartbeat timed out.")
+            prefs.edit().putBoolean("automation_running", false).putString("automation_error", "AccessibilityService disconnected.").apply()
+            return
+        }
+
+        val target = prefs.getString("selected_package", null)
+        val activePackage = prefs.getString("accessibility_package", null)
+        if (target.isNullOrBlank() || activePackage != target) {
+            demoAutomation.stop("Target package changed; automation stopped.")
+            prefs.edit().putBoolean("automation_running", false).apply()
+            return
+        }
+
+        val text = prefs.getString("accessibility_text", "").orEmpty()
+        if (text.isNotBlank()) {
+            demoAutomation.onAccessibilitySnapshot(activePackage, text.split(" ").filter { it.isNotBlank() })
+        }
+        demoAutomation.onFrame(image)
+    }
+
     private data class RegionStats(val greenRatio: Double, val brightRatio: Double, val activityRatio: Double)
 
     private fun sampleRegion(buffer: ByteBuffer, width: Int, height: Int, rowStride: Int, pixelStride: Int, leftF: Float, topF: Float, rightF: Float, bottomF: Float): RegionStats {
@@ -584,6 +620,7 @@ class MonitorService : Service() {
     }
 
     override fun onDestroy() {
+        if (::demoAutomation.isInitialized) demoAutomation.stop("MonitorService destroyed.")
         removePanel()
         bubble?.let { try { wm.removeView(it) } catch (_: Exception) {} }
         betMarker?.let { try { wm.removeView(it) } catch (_: Exception) {} }
