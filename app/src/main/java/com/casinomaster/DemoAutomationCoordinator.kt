@@ -56,20 +56,35 @@ class DemoAutomationCoordinator(
         AutomationProfileStore(appContext).appendLog(line)
     }
 
-    private val machine = AutomationStateMachine(
-        betThreshold = BET_COUNTDOWN_THRESHOLD,
-        betAmount = TEST_BET_AMOUNT,
-        targetMultiplier = TARGET_MULTIPLIER,
-        cooldownMs = COOLDOWN_MS,
-        logger = logger,
-        controller = DemoGameController { action ->
-            AutomationProfileStore(appContext).appendLog(
-                System.currentTimeMillis().toString() + " GAME_ACTION " + action
-            )
-        }
-    )
+    private lateinit var machine: AutomationStateMachine
+    private val controller = DemoGameController { action ->
+        AutomationProfileStore(appContext).appendLog(
+            System.currentTimeMillis().toString() + " GAME_ACTION " + action
+        )
+    }
+
+    private fun buildMachine() {
+        val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val threshold = prefs.getString("countdown_threshold", BET_COUNTDOWN_THRESHOLD.toString())?.toIntOrNull()
+            ?.coerceIn(1, 300) ?: BET_COUNTDOWN_THRESHOLD
+        val amount = prefs.getString("amount", TEST_BET_AMOUNT.toString())?.toDoubleOrNull()
+            ?.takeIf { it > 0 } ?: TEST_BET_AMOUNT
+        val target = prefs.getString("target", TARGET_MULTIPLIER.toString())?.toDoubleOrNull()
+            ?.takeIf { it >= 1.0 } ?: TARGET_MULTIPLIER
+        val cooldown = prefs.getString("cooldown_seconds", "10")?.toLongOrNull()
+            ?.coerceIn(1, 300)?.times(1000L) ?: COOLDOWN_MS
+        machine = AutomationStateMachine(
+            betThreshold = threshold,
+            betAmount = amount,
+            targetMultiplier = target,
+            cooldownMs = cooldown,
+            logger = logger,
+            controller = controller
+        )
+    }
 
     fun start() {
+        buildMachine()
         running = true
         machine.start()
         publish()
@@ -83,7 +98,7 @@ class DemoAutomationCoordinator(
             .putBoolean("automation_running", false)
             .apply()
         publish()
-        recognizer.close()
+
     }
 
     fun isRunning(): Boolean = running
