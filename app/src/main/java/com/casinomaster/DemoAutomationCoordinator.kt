@@ -92,7 +92,7 @@ class DemoAutomationCoordinator(
 
     fun stop(reason: String = "stopped by user") {
         running = false
-        machine.stop()
+        if (::machine.isInitialized) machine.stop()
         appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("automation_error", reason)
             .putBoolean("automation_running", false)
@@ -213,6 +213,7 @@ class DemoAutomationCoordinator(
     }
 
     private fun publish() {
+        if (!::machine.isInitialized) return
         val s = machine.snapshot()
         onSnapshot(s)
         appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
