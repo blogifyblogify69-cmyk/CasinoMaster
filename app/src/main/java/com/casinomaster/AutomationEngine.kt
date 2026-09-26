@@ -45,8 +45,17 @@ fun interface AutomationLogger {
 class CountdownDetector {
     private val pattern = Regex("""(?<![\d.])(\d{1,3})(?:\s*s)?(?![\d.])""", RegexOption.IGNORE_CASE)
 
-    fun parse(text: String): Int? =
-        pattern.find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()?.takeIf { it in 0..999 }
+    fun parse(text: String): Int? {
+        val explicitSeconds = Regex("""(?i)\\b(\\d{1,3})\\s*(?:seconds?|secs?|s)\\b""")
+            .find(text)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        if (explicitSeconds != null && explicitSeconds in 0..300) return explicitSeconds
+        val exact = text.trim().toIntOrNull()
+        if (exact != null && exact in 0..60) return exact
+        return pattern.findAll(text)
+            .mapNotNull { it.groupValues.getOrNull(1)?.toIntOrNull() }
+            .filter { it in 0..60 }
+            .minOrNull()
+    }
 }
 
 class MultiplierDetector {
